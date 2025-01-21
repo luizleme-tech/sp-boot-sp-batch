@@ -1,0 +1,17 @@
+server:
+    port: 8081
+spring:
+    datasource:
+        driverClassName: com.mysql.cj.jdbc.Driver
+        url: jdbc:mysql://localhost:3306/codetickets-db
+        jdbcUrl: jdbc:mysql://localhost:3306/codetickets-db
+        username: myuser
+        password: mypass
+    jpa:
+        hibernate:
+            ddl-auto: update
+        database-platform: org.hibernate.dialect.MySQLDialect
+    batch:
+        jdbc:
+            initialize-schema: always
+
