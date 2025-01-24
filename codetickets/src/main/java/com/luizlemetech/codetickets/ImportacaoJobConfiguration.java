@@ -1,5 +1,7 @@
 package com.luizlemetech.codetickets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -26,6 +28,7 @@ import java.io.File;
 @Configuration
 public class ImportacaoJobConfiguration {
 
+    private static final Logger log = LoggerFactory.getLogger(ImportacaoJobConfiguration.class);
     @Autowired
     private PlatformTransactionManager transactionManager;
 
@@ -33,7 +36,7 @@ public class ImportacaoJobConfiguration {
     public Job job(Step passoInicial, JobRepository jobRepository) {
         return new JobBuilder("geracao-tickets", jobRepository)
                 .start(passoInicial)
-                .next(moverArquivosStep(jobRepository))
+                //.next(moverArquivosStep(jobRepository))
                 .incrementer(new RunIdIncrementer())
                 .build();
     }
@@ -41,7 +44,8 @@ public class ImportacaoJobConfiguration {
     @Bean
     public Step passoInicial(ItemReader<Importacao> reader, ItemWriter<Importacao> writer, JobRepository jobRepository) {
         return new StepBuilder("passo-inicial", jobRepository)
-                .<Importacao, Importacao>chunk(5000, transactionManager)
+                .<Importacao, Importacao>chunk(10000, transactionManager)
+                .allowStartIfComplete(true)
                 .reader(reader)
                 .processor(processor())
                 .writer(writer)
@@ -52,7 +56,7 @@ public class ImportacaoJobConfiguration {
     public ItemReader<Importacao> reader() {
         return new FlatFileItemReaderBuilder<Importacao>()
                 .name("leitura-csv")
-                .resource(new FileSystemResource("files/generated_full_records.csv"))
+                .resource(new FileSystemResource("files/dados-200k.csv"))
                 .comments("--")
                 .delimited()
                 .delimiter(";")
@@ -61,17 +65,25 @@ public class ImportacaoJobConfiguration {
                 .build();
     }
 
-    @Bean
-    public ItemWriter<Importacao> writer(DataSource dataSource) {
-        return new JdbcBatchItemWriterBuilder<Importacao>()
-                .dataSource(dataSource)
-                .sql(
-                        "INSERT INTO importacao (cpf, cliente, nascimento, evento, data, tipo_ingresso, valor, hora_importacao, taxa_adm) VALUES" +
-                                " (:cpf, :cliente, :nascimento, :evento, :data, :tipoIngresso, :valor, :horaImportacao, :taxaAdm)"
+//    @Bean
+//    public ItemWriter<Importacao> writer(DataSource dataSource) {
+//        return new JdbcBatchItemWriterBuilder<Importacao>()
+//                .dataSource(dataSource)
+//                .sql(
+//                        "INSERT INTO importacao (cpf, cliente, nascimento, evento, data, tipo_ingresso, valor, hora_importacao, taxa_adm) VALUES" +
+//                                " (:cpf, :cliente, :nascimento, :evento, :data, :tipoIngresso, :valor, :horaImportacao, :taxaAdm)"
+//
+//                )
+//                .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
+//                .build();
+//    }
 
-                )
-                .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
-                .build();
+    @Bean
+    public ItemWriter<Importacao> writer(ImportacaoRepository importacaoRepository) {
+        return items -> {
+            importacaoRepository.saveAll(items);
+            importacaoRepository.flush();
+        };
     }
 
     @Bean
@@ -111,6 +123,5 @@ public class ImportacaoJobConfiguration {
                 .tasklet(moverArquivosTasklet(), transactionManager)
                 .build();
     }
-
 }
 
